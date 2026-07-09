@@ -1,0 +1,14 @@
+# 👇 UPDATED: Universal wildcard match for deep cache folders
+**/__pycache__/
+*.pyc
+
+# Environment isolation layers
+.env
+.venv
+env/
+venv/
+
+# Local state, session history, and credentials databases
+*.json
+cache/
+sessions/
