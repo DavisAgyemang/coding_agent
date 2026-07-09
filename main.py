@@ -60,12 +60,12 @@ async def main():
                 continue
             force_menu = False
 
-        # 👇 STEP A: Draw the complete persistent display layout before demanding input
+        #  Draw the complete persistent display layout before demanding input
         os.system('cls' if os.name == 'nt' else 'clear')
         print_harness_screen(console, target_model, use_entra_id, len(current_chat_history))
         display_chat_history(current_chat_history, console)
 
-        # 👇 STEP B: Ask the user their next question right below the persistent history stack
+        #  Ask the user their next question right below the persistent history stack
         if show_interactive_loop:
             try:
                 user_query = get_custom_prompt_input("\n\033[96mAsk anything ❯ \033[0m")
@@ -83,7 +83,7 @@ async def main():
                 console.print("[yellow]👋 Session safely terminated. Goodbye![/yellow]")
                 break
 
-        # 👇 STEP C: Process live stream panels cleanly underneath the drawn canvas
+        # Process live stream panels cleanly underneath the drawn canvas
 
         try:
             panel_reasoning, panel_answer, ui_group = llm_ui_panels(console)

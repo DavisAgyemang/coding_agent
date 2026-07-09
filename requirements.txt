@@ -154,6 +154,8 @@ idna==3.18
     #   yarl
 importlib-resources==7.1.0
     # via chromadb
+iniconfig==2.3.0
+    # via pytest
 isodate==0.7.2
     # via azure-search-documents
 jiter==0.15.0
@@ -235,6 +237,7 @@ packaging==26.2
     #   huggingface-hub
     #   onnxruntime
     #   plotly
+    #   pytest
     #   wheel
 pandas==3.0.3
     # via
@@ -246,6 +249,8 @@ pip-tools==7.5.3
     # via -r requirements.in
 plotly==6.8.0
     # via vanna
+pluggy==1.6.0
+    # via pytest
 prompt-toolkit==3.0.52
     # via -r requirements.in
 propcache==0.5.2
@@ -288,7 +293,9 @@ pydantic-graph==1.59.0
 pydantic-settings==2.14.1
     # via chromadb
 pygments==2.20.0
-    # via rich
+    # via
+    #   pytest
+    #   rich
 pyjwt[crypto]==2.13.0
     # via
     #   msal
@@ -299,6 +306,8 @@ pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
+pytest==9.1.1
+    # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via
     #   kubernetes
