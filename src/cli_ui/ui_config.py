@@ -3,7 +3,9 @@ import sys
 import getpass
 from rich.panel import Panel
 from rich.console import Group
-
+from pydantic_ai.messages import ModelRequest, ModelResponse,UserPromptPart, TextPart, ToolCallPart
+from rich.markdown import Markdown
+import json
 
 def get_graceful_input(console, prompt_msg: str, is_secret: bool = False) -> str:
     """A single unified input handler that supports graceful exits and optional masking for secrets."""
@@ -185,6 +187,48 @@ def llm_ui_panels(console):
     ui_group = Group(panel_reasoning, panel_answer)
 
     return panel_reasoning, panel_answer, ui_group
+
+
+def display_chat_history(chat_history, console):
+
+    for message in chat_history:
+        # 1. Capture Past User Prompts
+        if isinstance(message, ModelRequest):
+            for part in message.parts:
+                if isinstance(part, UserPromptPart):
+                    console.print(f"\n[bold green]👤 You:[/bold green] {part.content}")
+
+
+        # 2. Capture Past AI Structured Text Responses
+        elif isinstance(message, ModelResponse):
+
+            for part in message.parts:
+
+                if isinstance(part, ToolCallPart):
+
+                    if part.tool_name == "final_result":
+                        try:
+                            ai_output= json.loads(part.args) if isinstance(part.args, str) else part.args
+                            answer = ai_output.get("answer", "")
+
+                            if answer:
+                                console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
+                                console.print(Markdown(answer))
+
+
+                        except Exception:
+                            pass  # Fallback to printing raw text if parsing hits validation noise
+                            # Standalone flat string fallback (if it's ever used)
+                    elif isinstance(part, TextPart) and part.content.strip():
+                        # Double-check it isn't raw schema JSON layout strings
+                        if not (part.content.strip().startswith("{") and part.content.strip().endswith("}")):
+                            console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
+                            console.print(Markdown(part.content.strip()))
+
+    console.print("\n" + "─" * 70 + "\n")
+
+
+
 
 
 
