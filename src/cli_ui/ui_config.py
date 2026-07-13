@@ -175,7 +175,7 @@ def print_harness_screen(console, model_name, auth_method, history_count: int):
         f"      [grey50]Engine:[/grey50] [bold]{model_name}[/bold]  ·  [grey50]Auth:[/grey50] [green]{auth_method}[/green]  ·  [grey50]Context nodes:[/grey50] [cyan]{history_count}[/cyan]")
     # 👇 UPDATED: Clear navigation commands explicitly documented for the user
     console.print(
-        f"      [grey50][Type [bold white]menu[/bold white] or [bold white]swap[/bold white] to change profiles  ·  Type [bold white]exit[/bold white] or [bold white]quit[/bold white] to safely close CodeMan][/grey50]\n")
+        f"      [grey50][Type CTRL+D to [bold white]submit[/bold white] query . Type [bold white]menu[/bold white] or [bold white]swap[/bold white] to change profiles  ·  Type [bold white]exit[/bold white] or [bold white]quit[/bold white] to safely close CodeMan][/grey50]\n")
 
 
 def llm_ui_panels(console):
