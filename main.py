@@ -26,6 +26,7 @@ async def main():
 
     target_model = config["model_name"] if not force_menu else None
     use_entra_id = config["use_entra_id"] if not force_menu else True
+    auth_type = "Entra ID" if use_entra_id is True else "API Key"
 
     # 1. Select menu options
     target_model, use_entra_id = show_menu(force_menu, target_model, use_entra_id, console)
@@ -62,13 +63,13 @@ async def main():
 
         #  Draw the complete persistent display layout before demanding input
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_harness_screen(console, target_model, use_entra_id, len(current_chat_history))
+        print_harness_screen(console, target_model, auth_type, len(current_chat_history))
         display_chat_history(current_chat_history, console)
 
         #  Ask the user their next question right below the persistent history stack
         if show_interactive_loop:
             try:
-                user_query = get_custom_prompt_input("\n\033[96mAsk anything ❯ \033[0m")
+                user_query = get_custom_prompt_input("\n\033[96mAsk anything (Submit with CTRL + D ) ❯ \033[0m")
             except Exception:
                 user_query = "exit"
 
@@ -143,5 +144,10 @@ async def main():
             if not show_interactive_loop:
                 break
 
-if __name__ == "__main__":
+def cli():
+    """Synchronous entry point that bootstraps your async main loop."""
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli()

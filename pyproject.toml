@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coding-agent"
+version = "0.1.0"
+dependencies = [
+    "azure-identity",
+    "azure-search-documents",
+    "docker",
+    "fastapi",
+    "fastembed",
+    "genai-prices",
+    "pandas",
+    "prompt-toolkit",
+    "pydantic-ai-slim[google,groq,openai]",
+    "pytest",
+    "python-dotenv",
+    "rich",
+    "tree-sitter",
+    "tree-sitter-python",
+    "uvicorn[standard]",
+    "vanna[chromadb,openai]",
+]
+
+[project.scripts]
+codeman = "main:cli"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

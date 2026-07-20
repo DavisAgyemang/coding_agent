@@ -1,28 +1,9 @@
+# Local package installation (reads dependencies from pyproject.toml)
+-e .
+
 # Base Tools
 pip
 pip-tools
 
-# Core AI Frameworks
-pydantic-ai-slim[openai,google,groq]==1.59.0
-vanna[chromadb,openai]
-fastembed
-
-
-
-# API & Server Architecture
-fastapi
-uvicorn
-
-# Azure Vector Search & Core Identity
-azure-identity
-azure-search-documents
-
-# Core Data & Environment Tools
-python-dotenv
-pandas
-prompt_toolkit
-rich
-tree-sitter
-tree-sitter-python
-docker
+# Testing & Dev
 pytest

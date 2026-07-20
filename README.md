@@ -89,3 +89,8 @@ pip install -r requirements.txt
  
 python main.py
 ```
+### how to run Codeman from anywhere
+run the command below and you can use codeman everywhere on your pc
+```bash
+pip install -e .
+```
