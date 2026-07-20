@@ -12,6 +12,7 @@ from typing import Optional, Union
 import getpass
 import subprocess
 import json
+from functools import partial
 
 class QueryResponse(BaseModel):
     reasoning: str = Field(description="Step-by-step logical breakdown of your thought process.")
@@ -30,6 +31,8 @@ class LLMHarness:
         self.auth_method = "UNKNOWN"
         self.resolved_model = self._determine_provider()
         self.console = console
+        self.before_prompt = None  # 👈 Added event anchor
+        self.after_prompt = None  # 👈 Added event anchor
 
         # Initialize Tree-Sitter workspace parser framework
         self.repo_mapper = RepoMapper(root_dir=Path.cwd())
@@ -44,8 +47,24 @@ class LLMHarness:
     def _link_llm_actions(self):
         self.agent.tool_plain(llm_actions.inspect_repository_structure)
         self.agent.tool_plain(llm_actions.read_repo_file)
-        self.agent.tool_plain(llm_actions.write_repo_file)
         self.agent.tool_plain(llm_actions.verify_code_health)
+
+        def write_repo_file(file_path: str, content: str) -> str:
+            # 1. Safely stop the dynamic live display animation if a callback exists
+            if self.before_prompt:
+                self.before_prompt()
+
+            # 2. Fire your safe tool input sequence
+            result = llm_actions.write_repo_file(file_path, content, console=self.console)
+
+            # 3. Resume the layout display panels smoothly right after the user types y/n
+            if self.after_prompt:
+                self.after_prompt()
+
+            return result
+
+        write_repo_file.__doc__ = llm_actions.write_repo_file.__doc__
+        self.agent.tool_plain(write_repo_file)
 
     def _register_dynamic_prompts(self):
         """Attaches dynamic structural repomapping instructions to the execution chain."""

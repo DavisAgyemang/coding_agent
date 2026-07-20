@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 from src.llm_tooling.sandbox import DockerSandbox
+from rich.prompt import Confirm
 
 try:
     sandbox_engine = DockerSandbox()
@@ -54,30 +55,39 @@ def read_repo_file(file_path: str) -> str:
         return f"❌ Error reading file: {e}"
 
 
-def write_repo_file(file_path: str, content: str) -> str:
+def write_repo_file(file_path: str, content: str, console=None) -> str:
     """Creates or overwrites a file in the repository with new code or content.
 
     Args:
         file_path: The relative path to the target file.
         content: The complete, exact text content to write into the file.
+        console: Optional Rich Console instance passed via functools.partial.
     """
-    print(f"\n\033[93m🔔 AI wants to write to '{file_path}'. Allow? (y/n):\033[0m ", end="", flush=True)
+    # 🌟 NEW CODE: If the shared console is passed down, use Rich's UI-safe prompt
+    if console is not None:
+        console.print(f"\n[bold yellow]🔔 AI wants to write to [cyan]'{file_path}'[/cyan].[/bold yellow]")
+        # Confirm.ask tells the active Live context manager to pause updates safely
+        if not Confirm.ask("Allow modification?", default=False, console=console):
+            return "❌ Action rejected by the user. Do not modify the file."
 
-    # Read a single character cleanly depending on OS to bypass buffering locks
-    if os.name == 'nt':
-        import msvcrt
-        confirm = msvcrt.getch().decode('utf-8').lower()
-        print(confirm)  # Echo choice
+    # 🔄 FALLBACK CODE: Use your custom single-char logic if no console is provided
     else:
-        import sys
-        # Read directly from standard input stream without waiting for a newline buffer
-        confirm = sys.stdin.read(1).lower()
-        if confirm not in ['\n', '\r']:
+        print(f"\n\033[93m🔔 AI wants to write to '{file_path}'. Allow? (y/n):\033[0m ", end="", flush=True)
+
+        if os.name == 'nt':
+            import msvcrt
+            confirm = msvcrt.getch().decode('utf-8').lower()
             print(confirm)  # Echo choice
+        else:
+            import sys
+            confirm = sys.stdin.read(1).lower()
+            if confirm not in ['\n', '\r']:
+                print(confirm)  # Echo choice
 
-    if confirm != 'y':
-        return "❌ Action rejected by the user. Do not modify the file."
+        if confirm != 'y':
+            return "❌ Action rejected by the user. Do not modify the file."
 
+    # 💾 CORE EXECUTION: File system writing (kept exactly the same)
     path = Path(file_path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -25,3 +25,4 @@ rich
 tree-sitter
 tree-sitter-python
 docker
+pytest
