@@ -89,3 +89,21 @@ pip install -r requirements.txt
  
 python main.py
 ```
+### how to run Codeman from anywhere
+
+For bash (if using ~/.bash_profile or ~/.bashrc):
+```bash
+echo 'alias codeman="<PATH_TO_YOUR_PROJECT>/.venv/bin/python <PATH_TO_YOUR_PROJECT>/main.py"' >> ~/.bash_profile
+source ~/.bash_profile
+```
+
+For zsh (if using ~/.zshrc):
+```bash
+echo 'alias codeman="<PATH_TO_YOUR_PROJECT>/.venv/bin/python <PATH_TO_YOUR_PROJECT>/main.py"' >> ~/.zshrc
+source ~/.zshrc
+```
+Verify installation in a new terminal session:
+
+```bash
+codeman
+```

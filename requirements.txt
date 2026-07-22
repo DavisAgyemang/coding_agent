@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+-e .
+    # via -r requirements.in
 aiohappyeyeballs==2.6.2
     # via aiohttp
 aiohttp==3.14.1
@@ -35,9 +37,9 @@ azure-core==1.41.0
     #   azure-identity
     #   azure-search-documents
 azure-identity==1.25.3
-    # via -r requirements.in
+    # via coding-agent
 azure-search-documents==12.0.0
-    # via -r requirements.in
+    # via coding-agent
 bcrypt==5.0.0
     # via chromadb
 build==1.5.0
@@ -77,13 +79,13 @@ distro==1.9.0
     #   groq
     #   openai
 docker==7.1.0
-    # via -r requirements.in
+    # via coding-agent
 durationpy==0.10
     # via kubernetes
 fastapi==0.137.2
-    # via -r requirements.in
+    # via coding-agent
 fastembed==0.8.0
-    # via -r requirements.in
+    # via coding-agent
 filelock==3.29.4
     # via huggingface-hub
 flatbuffers==25.12.19
@@ -95,7 +97,9 @@ frozenlist==1.8.0
 fsspec==2026.6.0
     # via huggingface-hub
 genai-prices==0.0.66
-    # via pydantic-ai-slim
+    # via
+    #   coding-agent
+    #   pydantic-ai-slim
 google-auth[requests]==2.55.0
     # via google-genai
 google-genai==2.8.0
@@ -241,7 +245,7 @@ packaging==26.2
     #   wheel
 pandas==3.0.3
     # via
-    #   -r requirements.in
+    #   coding-agent
     #   vanna
 pillow==12.2.0
     # via fastembed
@@ -252,7 +256,7 @@ plotly==6.8.0
 pluggy==1.6.0
     # via pytest
 prompt-toolkit==3.0.52
-    # via -r requirements.in
+    # via coding-agent
 propcache==0.5.2
     # via
     #   aiohttp
@@ -285,7 +289,7 @@ pydantic==2.13.4
     #   pydantic-settings
     #   vanna
 pydantic-ai-slim[google,groq,openai]==1.59.0
-    # via -r requirements.in
+    # via coding-agent
 pydantic-core==2.46.4
     # via pydantic
 pydantic-graph==1.59.0
@@ -307,14 +311,16 @@ pyproject-hooks==1.2.0
     #   build
     #   pip-tools
 pytest==9.1.1
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   coding-agent
 python-dateutil==2.9.0.post0
     # via
     #   kubernetes
     #   pandas
 python-dotenv==1.2.2
     # via
-    #   -r requirements.in
+    #   coding-agent
     #   pydantic-settings
     #   uvicorn
 pyyaml==6.0.3
@@ -346,8 +352,8 @@ requests-oauthlib==2.0.0
     # via kubernetes
 rich==15.0.0
     # via
-    #   -r requirements.in
     #   chromadb
+    #   coding-agent
     #   typer
 rpds-py==2026.5.1
     # via
@@ -389,9 +395,9 @@ tqdm==4.68.3
     #   huggingface-hub
     #   openai
 tree-sitter==0.26.0
-    # via -r requirements.in
+    # via coding-agent
 tree-sitter-python==0.25.0
-    # via -r requirements.in
+    # via coding-agent
 truststore==0.10.4
     # via
     #   httpcore2
@@ -440,12 +446,12 @@ urllib3==2.7.0
     #   requests
 uvicorn[standard]==0.49.0
     # via
-    #   -r requirements.in
     #   chromadb
+    #   coding-agent
 uvloop==0.22.1
     # via uvicorn
 vanna[chromadb,openai]==2.0.2
-    # via -r requirements.in
+    # via coding-agent
 watchfiles==1.2.0
     # via uvicorn
 wcwidth==0.8.2
