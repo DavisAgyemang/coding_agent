@@ -1,5 +1,5 @@
 from src.agent_memory_management.state_management import load_saved_config, load_chat_session, save_config, save_chat_session
-from src.cli_ui.ui_config import show_menu, session_options, print_harness_screen, llm_ui_panels, display_chat_history
+from src.cli_ui.ui_config import show_menu, session_options, print_harness_screen, llm_ui_panels, display_chat_history, show_help
 import sys
 import asyncio
 import os
@@ -8,6 +8,8 @@ from src.llm_harness.harness import LLMHarness
 from src.general_tools.tooling import get_custom_prompt_input
 from rich.markdown import Markdown
 from rich.live import Live
+from typing import List
+from pydantic_ai.messages import ModelMessage, ModelRequest
 # =====================================================================
 #  ENVIRONMENT ENFORCEMENT LAYER
 # =====================================================================
@@ -17,6 +19,25 @@ if not os.environ.get("PYTHONUNBUFFERED"):
 
 console = Console()
 session_id = "active_session"
+MAX_HISTORY_TURNS = 12  # Keeps context focused while preventing token bloat
+
+def get_safe_history(history: List[ModelMessage], max_turns: int = MAX_HISTORY_TURNS) -> List[ModelMessage]:
+    """
+    Trims chat history to a safe window while guaranteeing message structure integrity.
+
+    Ensures history starts cleanly on a ModelRequest (User query) so Pydantic AI
+    and OpenAI API never crash from orphaned tool responses or assistant turns.
+    """
+    if len(history) <= max_turns:
+        return history
+
+    trimmed = history[-max_turns:]
+
+    # Walk forward until we land on a clean ModelRequest turn
+    while trimmed and not isinstance(trimmed[0], ModelRequest):
+        trimmed.pop(0)
+
+    return trimmed if trimmed else history
 
 
 async def main():
@@ -69,12 +90,23 @@ async def main():
         #  Ask the user their next question right below the persistent history stack
         if show_interactive_loop:
             try:
-                user_query = get_custom_prompt_input("\n\033[96mAsk anything (Submit with CTRL + D ) ❯ \033[0m")
+                user_query = get_custom_prompt_input("\n\033[96mAsk anything (CTRL+D to submit, /help for commands) ❯ \033[0m")
             except Exception:
                 user_query = "exit"
 
             if not user_query:
                 continue
+            if user_query.lower() in ["/clear", "clear", "/reset", "reset"]:
+                current_chat_history = []
+                save_chat_session(session_id, current_chat_history, console)
+                console.print("\n[bold green]🧹 Session memory cleared! Token window reset to zero.[/bold green]")
+                await asyncio.sleep(1)
+                continue
+            if user_query.lower() in ["/help", "help", "?"]:
+                show_help(console)
+                continue
+
+
 
             if user_query == "__TRIGGER_MENU__" or user_query.lower() in ["menu", "swap", "config"]:
                 force_menu = True
@@ -112,7 +144,8 @@ async def main():
                 # Attach the improved cleanup hooks to your harness
                 harness.before_prompt = handle_before_prompt
                 harness.after_prompt = handle_after_prompt
-                async with harness.agent.run_stream(user_query, message_history=current_chat_history) as result:
+                recent_history = current_chat_history[-10:] if len(current_chat_history) > 10 else current_chat_history
+                async with harness.agent.run_stream(user_query, message_history=recent_history) as result:
                     async for current_data in result.stream_output():
                         try:
                             reasoning_accumulated = getattr(current_data, 'reasoning', '').strip()

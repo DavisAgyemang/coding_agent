@@ -2,6 +2,7 @@ import os
 import sys
 import getpass
 from rich.panel import Panel
+from rich.table import Table
 from rich.console import Group
 from pydantic_ai.messages import ModelRequest, ModelResponse,UserPromptPart, TextPart, ToolCallPart
 from rich.markdown import Markdown
@@ -187,7 +188,7 @@ def print_harness_screen(console, model_name, auth_method, history_count: int):
         f"      [grey50]Engine:[/grey50] [bold]{model_name}[/bold]  ·  [grey50]Auth:[/grey50] [green]{auth_method}[/green]  ·  [grey50]Context nodes:[/grey50] [cyan]{history_count}[/cyan]")
     # 👇 UPDATED: Clear navigation commands explicitly documented for the user
     console.print(
-        f"      [grey50][Type CTRL+D to [bold white]submit[/bold white] query . Type [bold white]menu[/bold white] or [bold white]swap[/bold white] to change profiles  ·  Type [bold white]exit[/bold white] or [bold white]quit[/bold white] to safely close CodeMan][/grey50]\n")
+        f"      [grey50][Type CTRL+D to [bold white]submit[/bold white] query . Type [bold white]menu[/bold white] or [bold white]swap[/bold white] to change profiles  · Type [bold white]/help[/bold white] for commands ·  Type [bold white]exit[/bold white] or [bold white]quit[/bold white] to safely close CodeMan][/grey50]\n")
 
 
 def llm_ui_panels(console):
@@ -242,6 +243,18 @@ def display_chat_history(chat_history, console):
 
 
 
+def show_help(console):
+    table = Table(show_header=True, header_style="bold magenta", expand=True)
+    table.add_column("Command", style="bold cyan", width=20)
+    table.add_column("Action", style="white")
+    table.add_row("CTRL + D", "Submit multi-line prompt and general queries")
+    table.add_row("/clear  or  clear or /reset or reset", "Reset chat history & zero out tokens")
+    table.add_row("menu or swap or  config", "Switch model or auth settings")
+    table.add_row("/help or help", "Show this command reference")
+    table.add_row("exit  or  quit", "Exit Codeman safely")
+
+    console.print(Panel(table, title="[bold yellow]💡 Codeman Command Reference[/bold yellow]", border_style="cyan"))
+    input("\n\033[90m👉 Press Enter to continue...\033[0m")
 
 
 def show_menu(force_menu, target_model, use_entra_id, console):
