@@ -53,22 +53,34 @@ def show_menu_options(console):
 
 
 def choose_options(console):
-    choice = input("Enter choice (1-5):  ").strip()
+    choice = input("Enter choice (1-5) or type exit:  ").strip()
     if choice == '1':
         use_entra_id = True
         console.print("\n[bold cyan]🔧 Configuring Azure OpenAI (Entra ID Passwordless)[/bold cyan]")
 
-        env_model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "").strip()
+        # 1. Handle Model / Deployment Name Prompt
+        current_model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "").strip()
+        prompt_model = f"Enter Azure Deployment/Model Name [{current_model}]: " if current_model else "Enter Azure Deployment/Model Name: "
+
+        user_model = get_graceful_input(prompt_msg=prompt_model, console=console)
+        env_model = user_model.strip() if user_model else current_model
+
         if not env_model:
-            env_model = get_graceful_input(prompt_msg="Enter your Azure Deployment / Model Name: (type exit if you want to exit) ", console=console)
-            if not env_model: raise ValueError("Azure Deployment Name cannot be empty.")
+            raise ValueError("Azure Deployment Name cannot be empty.")
         target_model = f"azure:{env_model}" if not env_model.startswith("azure:") else env_model
 
-        if not os.getenv("AZURE_OPENAI_ENDPOINT"):
-            endpoint = get_graceful_input(prompt_msg=
-                "Enter your Azure Endpoint URL (e.g., https://your-res.openai.azure.com/):  (type exit if you want to exit)", console=console)
-            if not endpoint: raise ValueError("Azure Endpoint URL cannot be empty.")
-            os.environ["AZURE_OPENAI_ENDPOINT"] = endpoint
+        # 2. Handle Endpoint Prompt (Always show current default)
+        current_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
+        prompt_endpoint = f"Enter Azure Endpoint URL [{current_endpoint}]: " if current_endpoint else "Enter Azure Endpoint URL: "
+
+        user_endpoint = get_graceful_input(prompt_msg=prompt_endpoint, console=console)
+        endpoint = user_endpoint.strip() if user_endpoint else current_endpoint
+
+        if not endpoint:
+            raise ValueError("Azure Endpoint URL cannot be empty.")
+
+        # Update environment memory so save_config() picks up the new URL
+        os.environ["AZURE_OPENAI_ENDPOINT"] = endpoint
 
         if not os.getenv("AZURE_OPENAI_API_VERSION"):
             api_ver = get_graceful_input(prompt_msg=
