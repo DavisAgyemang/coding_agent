@@ -4,9 +4,10 @@ import getpass
 from rich.panel import Panel
 from rich.table import Table
 from rich.console import Group
-from pydantic_ai.messages import ModelRequest, ModelResponse,UserPromptPart, TextPart, ToolCallPart
+from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart, ToolCallPart
 from rich.markdown import Markdown
 import json
+
 
 def get_graceful_input(console, prompt_msg: str, is_secret: bool = False) -> str:
     """A single unified input handler that supports graceful exits and optional masking for secrets."""
@@ -20,6 +21,7 @@ def get_graceful_input(console, prompt_msg: str, is_secret: bool = False) -> str
         sys.exit(0)
 
     return user_input
+
 
 def force_menu_config(force_menu, target_model, use_entra_id):
     if not force_menu:
@@ -59,7 +61,6 @@ def choose_options(console):
         use_entra_id = True
         console.print("\n[bold cyan]🔧 Configuring Azure OpenAI (Entra ID Passwordless)[/bold cyan]")
 
-        # 1. Handle Model / Deployment Name Prompt
         current_model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "").strip()
         prompt_model = f"Enter Azure Deployment/Model Name [{current_model}]: " if current_model else "Enter Azure Deployment/Model Name: "
 
@@ -70,7 +71,6 @@ def choose_options(console):
             raise ValueError("Azure Deployment Name cannot be empty.")
         target_model = f"azure:{env_model}" if not env_model.startswith("azure:") else env_model
 
-        # 2. Handle Endpoint Prompt (Always show current default)
         current_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").strip()
         prompt_endpoint = f"Enter Azure Endpoint URL [{current_endpoint}]: " if current_endpoint else "Enter Azure Endpoint URL: "
 
@@ -80,7 +80,6 @@ def choose_options(console):
         if not endpoint:
             raise ValueError("Azure Endpoint URL cannot be empty.")
 
-        # Update environment memory so save_config() picks up the new URL
         os.environ["AZURE_OPENAI_ENDPOINT"] = endpoint
 
         if not os.getenv("AZURE_OPENAI_API_VERSION"):
@@ -96,13 +95,15 @@ def choose_options(console):
         env_model = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "").strip()
         if not env_model:
             env_model = get_graceful_input(prompt_msg="Enter your Azure Deployment / Model Name:  (type exit if you want to exit)", console=console)
-            if not env_model: raise ValueError("Azure Deployment Name cannot be empty.")
+            if not env_model:
+                raise ValueError("Azure Deployment Name cannot be empty.")
         target_model = f"azure:{env_model}" if not env_model.startswith("azure:") else env_model
 
         if not os.getenv("AZURE_OPENAI_ENDPOINT"):
             endpoint = get_graceful_input(prompt_msg=
                 "Enter your Azure Endpoint URL (e.g., https://your-res.openai.azure.com/): (type exit if you want to exit) ", console=console)
-            if not endpoint: raise ValueError("Azure Endpoint URL cannot be empty.")
+            if not endpoint:
+                raise ValueError("Azure Endpoint URL cannot be empty.")
             os.environ["AZURE_OPENAI_ENDPOINT"] = endpoint
 
         if not os.getenv("AZURE_OPENAI_API_VERSION"):
@@ -111,11 +112,11 @@ def choose_options(console):
             os.environ["AZURE_OPENAI_API_VERSION"] = api_ver if api_ver else "2025-04-01-preview"
 
         if not os.getenv("AZURE_OPENAI_API_KEY"):
-            # console.print("\n🔒 [yellow][SECURITY INTERCEPT] AZURE_OPENAI_API_KEY is missing.[/yellow]")
             user_key = get_graceful_input(prompt_msg=
                 "🔒 [yellow]AZURE_OPENAI_API_KEY is missing.[/yellow] Enter Key: (type exit if you want to exit) ",
                 is_secret=True, console=console)
-            if not user_key: raise ValueError("Azure API Key cannot be empty.")
+            if not user_key:
+                raise ValueError("Azure API Key cannot be empty.")
             os.environ["AZURE_OPENAI_API_KEY"] = user_key
         return target_model, use_entra_id
     elif choice == '3':
@@ -125,11 +126,11 @@ def choose_options(console):
         use_entra_id = False
 
         if not os.getenv("ANTHROPIC_API_KEY"):
-            # console.print("\n🔒 [yellow][SECURITY INTERCEPT] ANTHROPIC_API_KEY is missing.[/yellow]")
             user_key = get_graceful_input(prompt_msg=
                 "\n🔒 [yellow][SECURITY INTERCEPT] ANTHROPIC_API_KEY is missing.[/yellow]\nEnter Key:  (type exit if you want to exit)",
                 is_secret=True, console=console)
-            if not user_key: raise ValueError("Anthropic API Key cannot be empty.")
+            if not user_key:
+                raise ValueError("Anthropic API Key cannot be empty.")
             os.environ["ANTHROPIC_API_KEY"] = user_key
         return target_model, use_entra_id
     elif choice == '4':
@@ -140,16 +141,16 @@ def choose_options(console):
         use_entra_id = False
 
         if not os.getenv("OPENAI_API_KEY"):
-            # console.print("\n🔒 [yellow][SECURITY INTERCEPT] OPENAI_API_KEY is missing.[/yellow]")
             user_key = get_graceful_input(prompt_msg=
                 "\n🔒 [yellow][SECURITY INTERCEPT] OPENAI_API_KEY is missing.[/yellow]\nEnter Key: (type exit if you want to exit) ",
                 is_secret=True, console=console)
-            if not user_key: raise ValueError("OpenAI API Key cannot be empty.")
+            if not user_key:
+                raise ValueError("OpenAI API Key cannot be empty.")
             os.environ["OPENAI_API_KEY"] = user_key
         return target_model, use_entra_id
     elif choice == '5':
         console.print("\n[grey50]Default: ollama:llama3[/grey50]")
-        custom_model = get_graceful_input( prompt_msg=
+        custom_model = get_graceful_input(prompt_msg=
             "Enter Ollama model name (or press Enter for default): (type exit if you want to exit) ", console=console)
         target_model = custom_model if custom_model else "ollama:llama3"
         use_entra_id = False
@@ -158,8 +159,7 @@ def choose_options(console):
 
     else:
         console.print("[red]❌ Invalid choice. Exiting.[/red]")
-        return  None, None
-
+        return None, None
 
 
 def session_options(console):
@@ -186,9 +186,11 @@ def print_harness_screen(console, model_name, auth_method, history_count: int):
     console.print("\n")
     console.print(
         f"      [grey50]Engine:[/grey50] [bold]{model_name}[/bold]  ·  [grey50]Auth:[/grey50] [green]{auth_method}[/green]  ·  [grey50]Context nodes:[/grey50] [cyan]{history_count}[/cyan]")
-    # 👇 UPDATED: Clear navigation commands explicitly documented for the user
     console.print(
-        f"      [grey50][Type CTRL+D to [bold white]submit[/bold white] query . Type [bold white]menu[/bold white] or [bold white]swap[/bold white] to change profiles  · Type [bold white]/help[/bold white] for commands ·  Type [bold white]exit[/bold white] or [bold white]quit[/bold white] to safely close CodeMan][/grey50]\n")
+        "      [grey50][CTRL+D: submit · [bold white]switch[/bold white]: switch/create chat · "
+        "[bold white]chats[/bold white]: manage histories · [bold white]menu[/bold white]: change profile · "
+        "[bold white]/help[/bold white]: commands · [bold white]exit[/bold white]: close][/grey50]\n"
+    )
 
 
 def llm_ui_panels(console):
@@ -203,44 +205,31 @@ def llm_ui_panels(console):
 
 
 def display_chat_history(chat_history, console):
-
     for message in chat_history:
-        # 1. Capture Past User Prompts
         if isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, UserPromptPart):
                     console.print(f"\n[bold green]👤 You:[/bold green] {part.content}")
 
-
-        # 2. Capture Past AI Structured Text Responses
         elif isinstance(message, ModelResponse):
-
             for part in message.parts:
-
                 if isinstance(part, ToolCallPart):
-
                     if part.tool_name == "final_result":
                         try:
-                            ai_output= json.loads(part.args) if isinstance(part.args, str) else part.args
+                            ai_output = json.loads(part.args) if isinstance(part.args, str) else part.args
                             answer = ai_output.get("answer", "")
 
                             if answer:
                                 console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
                                 console.print(Markdown(answer))
-
-
                         except Exception:
-                            pass  # Fallback to printing raw text if parsing hits validation noise
-                            # Standalone flat string fallback (if it's ever used)
-                    elif isinstance(part, TextPart) and part.content.strip():
-                        # Double-check it isn't raw schema JSON layout strings
-                        if not (part.content.strip().startswith("{") and part.content.strip().endswith("}")):
-                            console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
-                            console.print(Markdown(part.content.strip()))
+                            pass
+                elif isinstance(part, TextPart) and part.content.strip():
+                    if not (part.content.strip().startswith("{") and part.content.strip().endswith("}")):
+                        console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
+                        console.print(Markdown(part.content.strip()))
 
     console.print("\n" + "─" * 70 + "\n")
-
-
 
 
 def show_help(console):
@@ -248,12 +237,14 @@ def show_help(console):
     table.add_column("Command", style="bold cyan", width=20)
     table.add_column("Action", style="white")
     table.add_row("CTRL + D", "Submit multi-line prompt and general queries")
-    table.add_row("/clear  or  clear or /reset or reset", "Reset chat history & zero out tokens")
-    table.add_row("menu or swap or  config", "Switch model or auth settings")
+    table.add_row("switch or /switch", "Switch to a saved chat, or press n to create a new chat")
+    table.add_row("chats or /chats", "Open history manager to create, continue, or delete chats")
+    table.add_row("/clear, clear, /reset, reset", "Clear the active saved chat and reset its context")
+    table.add_row("menu, swap, config", "Switch model or authentication settings")
     table.add_row("/help or help", "Show this command reference")
-    table.add_row("exit  or  quit", "Exit Codeman safely")
+    table.add_row("exit or quit", "Exit CodeMan safely")
 
-    console.print(Panel(table, title="[bold yellow]💡 Codeman Command Reference[/bold yellow]", border_style="cyan"))
+    console.print(Panel(table, title="[bold yellow]💡 CodeMan Command Reference[/bold yellow]", border_style="cyan"))
     input("\n\033[90m👉 Press Enter to continue...\033[0m")
 
 
@@ -262,7 +253,7 @@ def show_menu(force_menu, target_model, use_entra_id, console):
     if force_menu:
         show_menu_options(console)
         new_target_model, new_use_entra_id = choose_options(console)
-        if new_target_model is not None and new_use_entra_id is not  None:
+        if new_target_model is not None and new_use_entra_id is not None:
             target_model = new_target_model
             use_entra_id = new_use_entra_id
     return target_model, use_entra_id

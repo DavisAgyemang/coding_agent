@@ -120,11 +120,25 @@ def _print_saved_chats(console, sessions, current_session_id=None):
     console.print("\n[bold]Saved chat histories (newest first):[/bold]")
     for index, session in enumerate(sessions, start=1):
         modified = session["modified"].strftime("%Y-%m-%d %H:%M")
-        current = " [bold green]← current[/bold green]" if session["session_id"] == current_session_id else ""
+        current = (
+            " [bold green]← current[/bold green]"
+            if session["session_id"] == current_session_id
+            else ""
+        )
         console.print(
             f"  [[bold cyan]{index}[/bold cyan]] {session['session_id']} "
             f"[grey50]({session['message_count']} messages, {modified})[/grey50]{current}"
         )
+
+
+def _create_and_save_chat(console) -> tuple[str, list[ModelMessage]]:
+    """Prompt for a chat name, create the session, and persist it immediately."""
+    name = input("Give this chat a name (optional): ").strip()
+    session_id = create_chat_session_id(name)
+    history: list[ModelMessage] = []
+    save_chat_session(session_id, history, console)
+    console.print(f"[green]✓ Created and switched to chat history: {session_id}[/green]")
+    return session_id, history
 
 
 def switch_chat_session(
@@ -132,36 +146,42 @@ def switch_chat_session(
     current_history: list[ModelMessage],
     console,
 ) -> tuple[str, list[ModelMessage]]:
-    """Select another saved chat from inside the active conversation window."""
-    # Persist the active chat before presenting the switcher so no completed turn is lost.
+    """Switch to a saved chat or create a new chat from the active window."""
+    # Persist the active chat first so switching or creating cannot lose a turn.
     save_chat_session(current_session_id, current_history, console)
     sessions = list_chat_sessions()
     _print_saved_chats(console, sessions, current_session_id=current_session_id)
-
-    if len(sessions) < 2:
-        console.print("[yellow]There are no other saved chat histories to switch to.[/yellow]")
-        input("Press Enter to return to the current chat...")
-        return current_session_id, current_history
+    console.print("\n  [[bold cyan]n[/bold cyan]] Create and switch to a new chat")
+    console.print("  [[bold cyan]b[/bold cyan]] Cancel and return to the current chat")
 
     while True:
-        raw_index = input(
-            "Enter the number of the chat to switch to (or b to cancel): "
+        raw_choice = input(
+            "Enter a chat number, n to create a new chat, or b to cancel: "
         ).strip()
-        if raw_index.lower() == "b":
+        normalized_choice = raw_choice.lower()
+
+        if normalized_choice in {"b", "back", "cancel"}:
             console.print("[cyan]Chat switch cancelled.[/cyan]")
             return current_session_id, current_history
 
+        if normalized_choice in {"n", "new"}:
+            return _create_and_save_chat(console)
+
         try:
-            selected_index = int(raw_index) - 1
+            selected_index = int(raw_choice) - 1
             if selected_index < 0:
                 raise IndexError
             selected_session_id = sessions[selected_index]["session_id"]
         except (ValueError, IndexError):
-            console.print("[red]That chat history number is invalid.[/red]")
+            console.print(
+                "[red]Invalid choice. Enter a listed chat number, n, or b.[/red]"
+            )
             continue
 
         if selected_session_id == current_session_id:
-            console.print("[yellow]That chat is already active. Choose another number or b.[/yellow]")
+            console.print(
+                "[yellow]That chat is already active. Choose another number, n, or b.[/yellow]"
+            )
             continue
 
         history = load_chat_session(selected_session_id, console)
@@ -173,7 +193,10 @@ def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
     """Interactively create, resume, or safely delete named chat histories."""
     while True:
         console.print("\n========================================================", style="bold blue")
-        console.print("         💬 CODEMAN CHAT HISTORY MANAGEMENT              ", style="bold white")
+        console.print(
+            "         💬 CODEMAN CHAT HISTORY MANAGEMENT              ",
+            style="bold white",
+        )
         console.print("========================================================", style="bold blue")
         console.print("  [[bold cyan]1[/bold cyan]] Start and save a new chat history")
         console.print("  [[bold cyan]2[/bold cyan]] Continue a saved chat history")
@@ -182,11 +205,7 @@ def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
         choice = input("Enter choice (1-3): ").strip()
 
         if choice == "1":
-            name = input("Give this chat a name (optional): ").strip()
-            session_id = create_chat_session_id(name)
-            save_chat_session(session_id, [], console)
-            console.print(f"[green]✓ Created chat history: {session_id}[/green]")
-            return session_id, []
+            return _create_and_save_chat(console)
 
         if choice not in {"2", "3"}:
             console.print("[red]Please enter 1, 2, or 3.[/red]")
@@ -198,7 +217,9 @@ def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
             continue
 
         action = "continue" if choice == "2" else "delete"
-        raw_index = input(f"Enter the number of the chat to {action} (or b to go back): ").strip()
+        raw_index = input(
+            f"Enter the number of the chat to {action} (or b to go back): "
+        ).strip()
         if raw_index.lower() == "b":
             continue
         try:
@@ -216,7 +237,8 @@ def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
 
         while True:
             confirmation = input(
-                f"Are you sure you want to delete '{session_id}'? Type y for yes or n for no: "
+                f"Are you sure you want to delete '{session_id}'? "
+                "Type y for yes or n for no: "
             ).strip().lower()
             if confirmation in {"y", "n"}:
                 break
@@ -237,7 +259,9 @@ def save_chat_session(session_id: str, history: list[ModelMessage], console):
         json_str = ModelMessagesTypeAdapter.dump_json(history, indent=2).decode("utf-8")
         chat_file.write_text(json_str)
     except Exception as e:
-        console.print(f"\n[yellow]⚠️ Warning: Failed to sync history matrix to disk: {e}[/yellow]")
+        console.print(
+            f"\n[yellow]⚠️ Warning: Failed to sync history matrix to disk: {e}[/yellow]"
+        )
 
 
 def load_chat_session(session_id: str, console):
@@ -253,5 +277,8 @@ def load_chat_session(session_id: str, console):
         raw_data = json.loads(chat_file.read_text())
         return ModelMessagesTypeAdapter.validate_python(raw_data)
     except Exception:
-        console.print("\n[yellow]⚠️ Warning: Conversation cache file was corrupted. Starting fresh.[/yellow]")
+        console.print(
+            "\n[yellow]⚠️ Warning: Conversation cache file was corrupted. "
+            "Starting fresh.[/yellow]"
+        )
         return []
