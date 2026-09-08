@@ -1,5 +1,5 @@
 from src.agent_memory_management.state_management import load_saved_config, load_chat_session, save_config, save_chat_session
-from src.cli_ui.ui_config import show_menu, session_options, print_harness_screen, llm_ui_panels, display_chat_history
+from src.cli_ui.ui_config import show_menu, session_options, print_harness_screen, llm_ui_panels, display_chat_history, show_help
 import sys
 import asyncio
 import os
@@ -8,6 +8,8 @@ from src.llm_harness.harness import LLMHarness
 from src.general_tools.tooling import get_custom_prompt_input
 from rich.markdown import Markdown
 from rich.live import Live
+from typing import List
+from src.general_tools.sanitise_chat import sanitize_history
 # =====================================================================
 #  ENVIRONMENT ENFORCEMENT LAYER
 # =====================================================================
@@ -17,6 +19,9 @@ if not os.environ.get("PYTHONUNBUFFERED"):
 
 console = Console()
 session_id = "active_session"
+MAX_HISTORY_TURNS = 12  # Keeps context focused while preventing token bloat
+
+
 
 
 async def main():
@@ -69,12 +74,23 @@ async def main():
         #  Ask the user their next question right below the persistent history stack
         if show_interactive_loop:
             try:
-                user_query = get_custom_prompt_input("\n\033[96mAsk anything (Submit with CTRL + D ) ❯ \033[0m")
+                user_query = get_custom_prompt_input("\n\033[96mAsk anything (CTRL+D to submit, /help for commands) ❯ \033[0m")
             except Exception:
                 user_query = "exit"
 
             if not user_query:
                 continue
+            if user_query.lower() in ["/clear", "clear", "/reset", "reset"]:
+                current_chat_history = []
+                save_chat_session(session_id, current_chat_history, console)
+                console.print("\n[bold green]🧹 Session memory cleared! Token window reset to zero.[/bold green]")
+                await asyncio.sleep(1)
+                continue
+            if user_query.lower() in ["/help", "help", "?"]:
+                show_help(console)
+                continue
+
+
 
             if user_query == "__TRIGGER_MENU__" or user_query.lower() in ["menu", "swap", "config"]:
                 force_menu = True
@@ -112,7 +128,9 @@ async def main():
                 # Attach the improved cleanup hooks to your harness
                 harness.before_prompt = handle_before_prompt
                 harness.after_prompt = handle_after_prompt
-                async with harness.agent.run_stream(user_query, message_history=current_chat_history) as result:
+                # recent_history = current_chat_history[-10:] if len(current_chat_history) > 10 else current_chat_history
+                safe_history = sanitize_history(current_chat_history, max_messages=MAX_HISTORY_TURNS)
+                async with harness.agent.run_stream(user_query, message_history=safe_history) as result:
                     async for current_data in result.stream_output():
                         try:
                             reasoning_accumulated = getattr(current_data, 'reasoning', '').strip()
@@ -128,7 +146,9 @@ async def main():
                             continue
 
                     await result.get_output()
-                    current_chat_history = result.all_messages()
+                    # current_chat_history = result.all_messages()
+                    #  Append ONLY the new messages from this specific turn to your complete infinite history
+                    current_chat_history.extend(result.new_messages())
                     save_chat_session(session_id, current_chat_history, console)
 
             # 👇 STEP D: Wait for user step verification acknowledgment before rendering loop cycle
