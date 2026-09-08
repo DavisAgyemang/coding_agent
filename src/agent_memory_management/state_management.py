@@ -113,17 +113,60 @@ def delete_chat_session(session_id: str, console=None) -> bool:
         return False
 
 
-def _print_saved_chats(console, sessions):
+def _print_saved_chats(console, sessions, current_session_id=None):
     if not sessions:
         console.print("[yellow]No saved chat histories were found.[/yellow]")
         return
     console.print("\n[bold]Saved chat histories (newest first):[/bold]")
     for index, session in enumerate(sessions, start=1):
         modified = session["modified"].strftime("%Y-%m-%d %H:%M")
+        current = " [bold green]← current[/bold green]" if session["session_id"] == current_session_id else ""
         console.print(
             f"  [[bold cyan]{index}[/bold cyan]] {session['session_id']} "
-            f"[grey50]({session['message_count']} messages, {modified})[/grey50]"
+            f"[grey50]({session['message_count']} messages, {modified})[/grey50]{current}"
         )
+
+
+def switch_chat_session(
+    current_session_id: str,
+    current_history: list[ModelMessage],
+    console,
+) -> tuple[str, list[ModelMessage]]:
+    """Select another saved chat from inside the active conversation window."""
+    # Persist the active chat before presenting the switcher so no completed turn is lost.
+    save_chat_session(current_session_id, current_history, console)
+    sessions = list_chat_sessions()
+    _print_saved_chats(console, sessions, current_session_id=current_session_id)
+
+    if len(sessions) < 2:
+        console.print("[yellow]There are no other saved chat histories to switch to.[/yellow]")
+        input("Press Enter to return to the current chat...")
+        return current_session_id, current_history
+
+    while True:
+        raw_index = input(
+            "Enter the number of the chat to switch to (or b to cancel): "
+        ).strip()
+        if raw_index.lower() == "b":
+            console.print("[cyan]Chat switch cancelled.[/cyan]")
+            return current_session_id, current_history
+
+        try:
+            selected_index = int(raw_index) - 1
+            if selected_index < 0:
+                raise IndexError
+            selected_session_id = sessions[selected_index]["session_id"]
+        except (ValueError, IndexError):
+            console.print("[red]That chat history number is invalid.[/red]")
+            continue
+
+        if selected_session_id == current_session_id:
+            console.print("[yellow]That chat is already active. Choose another number or b.[/yellow]")
+            continue
+
+        history = load_chat_session(selected_session_id, console)
+        console.print(f"[green]✓ Switched to chat history: {selected_session_id}[/green]")
+        return selected_session_id, history
 
 
 def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:

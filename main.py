@@ -3,6 +3,7 @@ from src.agent_memory_management.state_management import (
     load_saved_config,
     save_config,
     save_chat_session,
+    switch_chat_session,
 )
 from src.cli_ui.ui_config import (
     display_chat_history,
@@ -89,7 +90,7 @@ async def main():
         if show_interactive_loop:
             try:
                 user_query = get_custom_prompt_input(
-                    "\n\033[96mAsk anything (CTRL+D to submit, /help for commands) ❯ \033[0m"
+                    "\n\033[96mAsk anything (CTRL+D to submit, type switch to change chat, help for commands) ❯ \033[0m"
                 )
             except Exception:
                 user_query = "exit"
@@ -108,7 +109,15 @@ async def main():
             if user_query.lower() in ["/help", "help", "?"]:
                 show_help(console)
                 continue
+            if user_query.lower() in ["/switch", "switch"]:
+                session_id, current_chat_history = switch_chat_session(
+                    session_id, current_chat_history, console
+                )
+                continue
             if user_query.lower() in ["/chats", "chats", "history"]:
+                # Open the complete manager when the user wants to create, resume,
+                # or delete histories rather than only switch the active one.
+                save_chat_session(session_id, current_chat_history, console)
                 session_id, current_chat_history = choose_chat_session(console)
                 continue
             if user_query == "__TRIGGER_MENU__" or user_query.lower() in [
