@@ -1,6 +1,6 @@
 """Cross-platform container sandbox for Podman and Docker.
 
-The Python ``docker`` package is only an API client.  Podman exposes a
+The Python ``docker`` package is only an API client. Podman exposes a
 Docker-compatible API, so neither the Docker CLI nor Docker Desktop is required
 when a Podman service or machine is running.
 """
@@ -8,6 +8,7 @@ when a Podman service or machine is running.
 import json
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,15 +21,23 @@ class ContainerSandbox:
     """Run validation commands in an ephemeral Docker-API-compatible container."""
 
     _DISCOVERY_TIMEOUT = 5
+    _DEFAULT_COMMAND_TIMEOUT = 600
 
-    def __init__(self, image_name: str = "python:3.11-slim"):
+    def __init__(
+        self,
+        image_name: str = "python:3.12-slim",
+        install_dependencies: bool = True,
+        command_timeout: Optional[int] = None,
+    ):
         self.image_name = image_name
+        self.install_dependencies = install_dependencies
+        self.command_timeout = command_timeout or self._env_timeout()
         self.runtime = "container runtime"
         self.base_url: Optional[str] = None
         errors = []
         attempted = set()
 
-        # Layer 1: let docker-py interpret a user-configured endpoint.  If it is
+        # Layer 1: let docker-py interpret a user-configured endpoint. If it is
         # stale, discovery continues instead of making the CLI unusable.
         explicit_host = os.environ.get("DOCKER_HOST")
         if explicit_host:
@@ -41,8 +50,8 @@ class ContainerSandbox:
                 errors.append(f"DOCKER_HOST {explicit_host!r}: {exc}")
                 attempted.add(self._normalise_socket(explicit_host) or explicit_host)
 
-        # Layers 2-4 discover Podman and native platform endpoints.  Usually this
-        # contains one item, but trying every usable socket avoids one stale socket
+        # Layers 2-4 discover Podman and native platform endpoints. Usually this
+        # contains one item, but trying all sockets avoids one stale endpoint
         # preventing a healthy engine later in the fallback list from being used.
         for endpoint in self._discover_socket_candidates(include_environment=False):
             if endpoint in attempted:
@@ -56,8 +65,7 @@ class ContainerSandbox:
             except Exception as exc:
                 errors.append(f"socket {endpoint}: {exc}")
 
-        # Keep docker.from_env as a backwards-compatible final fallback (for
-        # Docker contexts/defaults which are not represented by a local path).
+        # Preserve Docker contexts/defaults that are not represented by a path.
         try:
             client = docker.from_env()
             client.ping()
@@ -67,6 +75,14 @@ class ContainerSandbox:
             errors.append(f"default Docker endpoint: {exc}")
 
         raise RuntimeError(self._connection_error_message(errors))
+
+    @classmethod
+    def _env_timeout(cls) -> int:
+        """Read a safe sandbox timeout while tolerating invalid configuration."""
+        try:
+            return max(1, int(os.environ.get("CODEMAN_SANDBOX_TIMEOUT", cls._DEFAULT_COMMAND_TIMEOUT)))
+        except (TypeError, ValueError):
+            return cls._DEFAULT_COMMAND_TIMEOUT
 
     def _activate_client(self, client: Any, endpoint: Optional[str]) -> None:
         """Record a verified client and ensure the sandbox image is available."""
@@ -93,7 +109,7 @@ class ContainerSandbox:
             return None
 
         lower_value = value.lower()
-        # docker-py cannot establish Podman's SSH transport itself.  Machine
+        # docker-py cannot establish Podman's SSH transport itself. Machine
         # inspection supplies the corresponding local forwarded socket instead.
         if lower_value.startswith("ssh://"):
             return None
@@ -147,7 +163,6 @@ class ContainerSandbox:
                 if isinstance(value, str):
                     yield value
                 elif isinstance(value, dict):
-                    # Schema variants have used Path, path, URI, and Uri.
                     for child_key in ("Path", "path", "URI", "Uri", "uri"):
                         child = value.get(child_key)
                         if isinstance(child, str):
@@ -170,14 +185,11 @@ class ContainerSandbox:
             seen.add(endpoint)
             return endpoint
 
-        # Layer 1: an explicit, syntactically usable environment endpoint.
         if include_environment:
             endpoint = accept(os.environ.get("DOCKER_HOST"))
             if endpoint:
                 yield endpoint
 
-        # Layer 2: query the running engine.  This is Podman's most authoritative
-        # cross-platform answer and works for local services and machines.
         output = cls._run_podman(
             ["info", "--format", "{{.Host.RemoteSocket.Path}}"]
         )
@@ -185,7 +197,6 @@ class ContainerSandbox:
         if endpoint:
             yield endpoint
 
-        # Layer 3: inspect machine state across Podman schema versions.
         output = cls._run_podman(["machine", "inspect"])
         if output:
             try:
@@ -201,9 +212,6 @@ class ContainerSandbox:
             except (ValueError, TypeError):
                 pass
 
-        # Layer 4: local OS conventions.  File endpoints must exist; named pipes
-        # are probed by docker-py because ordinary Windows file checks are not a
-        # reliable way to determine whether a pipe server is accepting clients.
         system = platform.system()
         if system == "Windows":
             for raw in (
@@ -275,28 +283,61 @@ class ContainerSandbox:
             + (f" Connection attempts: {details}" if details else "")
         )
 
+    def _dependency_install_command(self, workspace: Path) -> Optional[str]:
+        """Choose the repository's standard Python dependency declaration."""
+        if not self.install_dependencies:
+            return None
+        pip = "python -m pip install --disable-pip-version-check"
+        if (workspace / "requirements.txt").is_file():
+            return f"{pip} -r requirements.txt"
+        if (workspace / "pyproject.toml").is_file() or (workspace / "setup.py").is_file():
+            return f"{pip} -e ."
+        return None
+
+    def _sandbox_command(self, command: str, workspace: Path) -> str:
+        """Install project dependencies before running the requested validation."""
+        install = self._dependency_install_command(workspace)
+        if not install:
+            return command
+        # Keep each phase visible in logs and never run tests after a failed install.
+        return (
+            "echo 'CodeMan: installing repository dependencies...' && "
+            f"{install} && "
+            "echo 'CodeMan: running validation command...' && "
+            f"{command}"
+        )
+
     def run_command_in_sandbox(self, command: str) -> dict:
-        """Mount the workspace, run a command, then remove the container."""
-        workspace_dir = str(Path.cwd().resolve())
+        """Mount the workspace, install its dependencies, run, then clean up."""
+        workspace = Path.cwd().resolve()
+        workspace_dir = str(workspace)
         container = None
         try:
+            sandbox_command = self._sandbox_command(command, workspace)
             container = self.client.containers.create(
                 image=self.image_name,
-                command=["sh", "-c", command],
+                command=["sh", "-c", sandbox_command],
                 working_dir="/workspace",
                 volumes={workspace_dir: {"bind": "/workspace", "mode": "rw"}},
                 mem_limit="512m",
                 nano_cpus=1_000_000_000,
             )
             container.start()
-            result = container.wait(timeout=30)
+            result = container.wait(timeout=self.command_timeout)
             exit_code = result.get("StatusCode", 1)
             logs = container.logs().decode("utf-8", errors="ignore")
             return {"exit_code": exit_code, "output": logs}
         except Exception as exc:
+            logs = ""
+            if container:
+                try:
+                    logs = container.logs().decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+            detail = f"Sandbox execution environment failure ({self.runtime}): {exc}"
             return {
                 "exit_code": 1,
-                "output": f"Sandbox execution environment failure ({self.runtime}): {exc}",
+                "output": f"{logs}\n{detail}".strip(),
             }
         finally:
             if container:
