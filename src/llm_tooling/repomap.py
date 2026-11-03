@@ -22,25 +22,32 @@ class RepoMapper:
         """)
 
     def extract_structures(self, file_path: Path) -> list[str]:
-        """Extracts names of classes and functions from a file using Tree-Sitter."""
+        """Extract names of classes and functions from a Python file."""
         try:
             code = file_path.read_bytes()
             tree = self.parser.parse(code)
 
-            # 👇 Pass self.query directly into QueryCursor's constructor
             cursor = QueryCursor(self.query)
             captures = cursor.captures(tree.root_node)
 
             structures = []
-            # Loop through the extracted captures dictionary mapping
             for capture_name, nodes in captures.items():
                 for node in nodes:
-                    name = node.text.decode('utf-8', errors='ignore')
-                    if capture_name == 'class.name':
+                    name = node.text.decode("utf-8", errors="ignore")
+                    if capture_name == "class.name":
                         structures.append(f"  class {name}:")
-                    elif capture_name == 'func.name':
-                        parent = node.parent
-                        prefix = "    def " if parent and parent.type == 'block' else "  def "
+                    elif capture_name == "func.name":
+                        # The captured identifier's immediate parent is the
+                        # function_definition. A method is nested beneath a
+                        # class_definition through that class's block node.
+                        ancestor = node.parent
+                        is_method = False
+                        while ancestor is not None:
+                            if ancestor.type == "class_definition":
+                                is_method = True
+                                break
+                            ancestor = ancestor.parent
+                        prefix = "    def " if is_method else "  def "
                         structures.append(f"{prefix}{name}(...)")
             return structures
         except Exception:
