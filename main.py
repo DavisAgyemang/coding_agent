@@ -50,8 +50,12 @@ async def main():
     save_config(target_model, use_entra_id)
     force_menu = False
 
-    # 2. Select a named saved history, or create a new one.
-    session_id, current_chat_history = choose_chat_session(console)
+    # 2. Select a named saved history, create a new one, or exit cleanly.
+    chat_selection = choose_chat_session(console)
+    if chat_selection is None:
+        console.print("[yellow]👋 CodeMan closed safely. Goodbye![/yellow]")
+        return
+    session_id, current_chat_history = chat_selection
 
     # 3. Instantiate the core LLMHarness once outside the conversation loop.
     try:
@@ -116,9 +120,15 @@ async def main():
                 continue
             if user_query.lower() in ["/chats", "chats", "history"]:
                 # Open the complete manager when the user wants to create, resume,
-                # or delete histories rather than only switch the active one.
+                # delete histories, or exit CodeMan.
                 save_chat_session(session_id, current_chat_history, console)
-                session_id, current_chat_history = choose_chat_session(console)
+                chat_selection = choose_chat_session(console)
+                if chat_selection is None:
+                    console.print(
+                        "[yellow]👋 Session safely terminated. Goodbye![/yellow]"
+                    )
+                    break
+                session_id, current_chat_history = chat_selection
                 continue
             if user_query == "__TRIGGER_MENU__" or user_query.lower() in [
                 "menu",
@@ -197,7 +207,11 @@ async def main():
 
 def cli():
     """Synchronous entry point that bootstraps the async main loop."""
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Avoid a traceback when Ctrl+C is used outside the chat picker.
+        console.print("\n[yellow]👋 CodeMan closed safely. Goodbye![/yellow]")
 
 
 if __name__ == "__main__":

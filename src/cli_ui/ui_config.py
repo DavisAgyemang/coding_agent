@@ -229,7 +229,7 @@ def display_chat_history(chat_history, console):
                         console.print(f"\n[bold cyan]🤖 CodeMan:[/bold cyan]")
                         console.print(Markdown(part.content.strip()))
 
-    console.print("\n" + "─" * 70 + "\n")
+    console.print("\n" + ("─" * 70) + "\n")
 
 
 def show_help(console):

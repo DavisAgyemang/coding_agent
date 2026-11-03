@@ -10,40 +10,53 @@ CONFIG_FILE = Path.home() / ".codeman_config.json"
 CHATS_DIR = Path.home() / ".codeman_chats"
 CHATS_DIR.mkdir(exist_ok=True)
 
-
 def load_saved_config(console):
-    if CONFIG_FILE.exists():
-        try:
-            data = CONFIG_FILE.read_text().strip()
-            if not data:
-                return None
-            config = json.loads(data)
+    if not CONFIG_FILE.exists():
+        return None
+    try:
+        data = CONFIG_FILE.read_text().strip()
+        if not data:
+            return None
+        config = json.loads(data)
 
-            if config.get("endpoint"):
-                os.environ["AZURE_OPENAI_ENDPOINT"] = config["endpoint"]
-            if config.get("api_version"):
-                os.environ["AZURE_OPENAI_API_VERSION"] = config["api_version"]
+        if config.get("endpoint"):
+            os.environ["AZURE_OPENAI_ENDPOINT"] = config["endpoint"]
+        if config.get("api_version"):
+            os.environ["AZURE_OPENAI_API_VERSION"] = config["api_version"]
+
+        # Only inject the static key if we are NOT using Entra ID
+        if not config.get("use_entra_id", False):
             if config.get("api_key"):
                 os.environ["AZURE_OPENAI_API_KEY"] = config["api_key"]
-            if config.get("anthropic_key"):
-                os.environ["ANTHROPIC_API_KEY"] = config["anthropic_key"]
-            if config.get("openai_key"):
-                os.environ["OPENAI_API_KEY"] = config["openai_key"]
+        else:
+            # Explicitly strip the static key from environment so Entra ID isn't overridden
+            os.environ.pop("AZURE_OPENAI_API_KEY", None)
 
-            return config
-        except Exception as e:
-            console.print(f"[yellow]⚠️ Failed to read config: {e}[/yellow]")
-            return None
-    return None
+        if config.get("anthropic_key"):
+            os.environ["ANTHROPIC_API_KEY"] = config["anthropic_key"]
+        if config.get("openai_key"):
+            os.environ["OPENAI_API_KEY"] = config["openai_key"]
+
+        return config
+    except Exception as e:
+        console.print(f"[yellow]⚠️ Failed to read config: {e}[/yellow]")
+        return None
 
 
 def save_config(model_name: str, use_entra_id: bool):
+    # If Entra ID is enabled, do not store or keep an API key
+    if use_entra_id:
+        os.environ.pop("AZURE_OPENAI_API_KEY", None)
+        api_key_to_save = ""
+    else:
+        api_key_to_save = os.getenv("AZURE_OPENAI_API_KEY", "")
+
     config_data = {
         "model_name": model_name,
         "use_entra_id": use_entra_id,
         "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
         "api_version": os.getenv("AZURE_OPENAI_API_VERSION", ""),
-        "api_key": os.getenv("AZURE_OPENAI_API_KEY", ""),
+        "api_key": api_key_to_save,
         "anthropic_key": os.getenv("ANTHROPIC_API_KEY", ""),
         "openai_key": os.getenv("OPENAI_API_KEY", ""),
     }
@@ -189,8 +202,8 @@ def switch_chat_session(
         return selected_session_id, history
 
 
-def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
-    """Interactively create, resume, or safely delete named chat histories."""
+def choose_chat_session(console) -> tuple[str, list[ModelMessage]] | None:
+    """Create, resume, or delete a chat; return None when the user exits."""
     while True:
         console.print("\n========================================================", style="bold blue")
         console.print(
@@ -201,14 +214,23 @@ def choose_chat_session(console) -> tuple[str, list[ModelMessage]]:
         console.print("  [[bold cyan]1[/bold cyan]] Start and save a new chat history")
         console.print("  [[bold cyan]2[/bold cyan]] Continue a saved chat history")
         console.print("  [[bold cyan]3[/bold cyan]] Delete a saved chat history")
+        console.print("  [[bold cyan]q[/bold cyan]] Exit CodeMan")
         console.print("========================================================", style="bold blue")
-        choice = input("Enter choice (1-3): ").strip()
+        try:
+            choice = input("Enter choice (1-3 or q): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            # Ctrl+D/Ctrl+Z and Ctrl+C should also leave the startup menu cleanly.
+            console.print()
+            return None
+
+        if choice in {"q", "quit", "exit", "4"}:
+            return None
 
         if choice == "1":
             return _create_and_save_chat(console)
 
         if choice not in {"2", "3"}:
-            console.print("[red]Please enter 1, 2, or 3.[/red]")
+            console.print("[red]Please enter 1, 2, 3, or q.[/red]")
             continue
 
         sessions = list_chat_sessions()
